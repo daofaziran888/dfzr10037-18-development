@@ -14,6 +14,9 @@ class Store:
         self._tables: dict[str, list[dict[str, Any]]] = {
             name: [dict(row) for row in rows] for name, rows in SEED_ROWS.items()
         }
+        # 领域专用表（跳过行隔离、图谱生效事实、补交记录、审计整改等），
+        # 不属于资源路由的 22 个业务模块，也不计入运营概览。
+        self._domain_tables: dict[str, list[dict[str, Any]]] = {}
 
     def module_names(self) -> list[str]:
         return sorted(self._tables)
@@ -21,11 +24,24 @@ class Store:
     def rows(self, module: str) -> list[dict[str, Any]]:
         return self._tables.setdefault(module, [])
 
+    def domain_rows(self, table: str) -> list[dict[str, Any]]:
+        return self._domain_tables.setdefault(table, [])
+
     def find(self, module: str, entry_id: int) -> dict[str, Any] | None:
         for row in self.rows(module):
             if int(row.get("id", 0)) == entry_id:
                 return row
         return None
+
+    def find_in(self, table: str, row_id: int) -> dict[str, Any] | None:
+        for row in self.domain_rows(table):
+            if int(row.get("id", 0)) == row_id:
+                return row
+        return None
+
+    def next_id(self, table: str) -> int:
+        rows = self.domain_rows(table)
+        return max((int(row.get("id", 0)) for row in rows), default=0) + 1
 
     def overview(self) -> dict[str, object]:
         modules: list[dict[str, object]] = []
